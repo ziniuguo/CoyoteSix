@@ -8,8 +8,10 @@ const kListener = new GlobalKeyboardListener();
 let connectionId = ""; // 从接口获取的连接标识符
 let targetWSId = ""; // 发送目标
 let wsConn = null; // 全局ws链接
-let isAwarding = false;
+let nextStatus = false; //
 let isPressing = 0;
+let lb = 30;
+let hb = 50;
 // 0 : waiting for down
 // 1: already down, waiting for up
 
@@ -161,6 +163,18 @@ function setLevel(channelIndex, strength) {
     sendWsMsg(data);
 }
 
+function setLevelFromFile() {
+    try {
+        const data = fs.readFileSync('strength', 'utf8');
+        const [name, value1, value2] = data.trim().split(',');
+        const data2send = { type: 3, strength: nextStatus ? value2 : value1, message: "set channel", channel: name === "A" ? 1 : 2 };
+        console.log(data2send);
+        sendWsMsg(data2send);
+    } catch (err) {
+        console.error('Error reading the file:', err);
+    }
+}
+
 kListener.addListener(function (e, down) {
     if (e.state === "DOWN" && e.rawKey._nameRaw === "VK_CAPITAL") {
         console.log(`${e.name} ${e.state === "DOWN" ? "DOWN" : "UP  "} [${e.rawKey._nameRaw}]`);
@@ -168,21 +182,9 @@ kListener.addListener(function (e, down) {
     }
     if (e.state === "UP" && e.rawKey._nameRaw === "VK_CAPITAL") {
         console.log(`${e.name} ${e.state === "DOWN" ? "DOWN" : "UP  "} [${e.rawKey._nameRaw}]`);
-        if (!isAwarding) {
-            // trigger
-            setLevel(1, 30);
-            // set flag
-            isAwarding = true
-            // reset pressing status
-            isPressing = 0;
-        } else {
-            // de-trigger
-            setLevel(1, 10);
-            // set flag
-            isAwarding = false
-            // reset pressing status
-            isPressing = 0;
-        }
+        setLevelFromFile();
+        nextStatus = !nextStatus;
+        isPressing = 0;
     }
 }).then(r => {});
 
