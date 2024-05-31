@@ -9,6 +9,7 @@ let connectionId = ""; // 从接口获取的连接标识符
 let targetWSId = ""; // 发送目标
 let wsConn = null; // 全局ws链接
 let nextStatus = false; //
+let waveInterval = null;
 let lb = 30;
 let hb = 50;
 
@@ -168,15 +169,9 @@ function setLevel(channelIndex, strength) {
 
 function setLevelFromFile() {
     try {
-        //波形数据:
-        // setInterval(() => {
-            const w = { type: "clientMsg", message: `A:${waveData[1]}`, message2: `B:${waveData[1]}`, time1: 3, time2: 3 }
-            sendWsMsg(w)
-        // }, 5000);
-
         //强度操作：
         const data = fs.readFileSync('strength', 'utf8');
-        const [name, value1, value2] = data.trim().split(',');
+        const [name, value1, value2] = data.trim().split('|');
         const data2send = { type: 3, strength: nextStatus ? value2 : value1, message: "set channel", channel: name === "A" ? 1 : 2 };
         sendWsMsg(data2send);
     } catch (err) {
@@ -184,11 +179,52 @@ function setLevelFromFile() {
     }
 }
 
+function resetWave() {
+    // read new wave
+    const dataA = fs.readFileSync('waveA', 'utf8');
+    const dataB = fs.readFileSync('waveB', 'utf8');
+    const dataTime = fs.readFileSync('waveDurationInterval', 'utf8');
+
+    const [durationA, durationB, interval] = dataTime.trim().split('|');
+    const durationANumber = parseInt(durationA);
+    const durationBNumber = parseInt(durationB);
+
+// Convert interval to number and convert seconds to milliseconds
+    const intervalNumber = parseInt(interval) * 1000;
+
+    // clear legacy waveA. actually not necessary as long as you dont send a lot
+    clearInterval(waveInterval)
+    clearAB(1);
+    clearAB(2);
+
+    //波形数据:
+    function sendWave () {
+        const w = { type: "clientMsg",
+            message: "A:"+dataA, time1: durationANumber,
+            message2: "B:"+dataB,  time2: durationBNumber
+        }
+        sendWsMsg(w)
+    }
+    sendWave()
+    waveInterval = setInterval(sendWave, intervalNumber);
+}
+
+function clearAB(channelIndex) {
+    const data = { type: 4, message: "clear-" + channelIndex }
+    sendWsMsg(data);
+}
+
 kListener.addListener(function (e, down) {
-    if (e.state === "UP" && e.rawKey._nameRaw === "VK_CAPITAL") {
+    if (e.state === "UP" && e.name === "CAPS LOCK") {
+        // change strength
         console.log(`${e.name} ${e.state === "DOWN" ? "DOWN" : "UP  "} [${e.rawKey._nameRaw}]`);
         setLevelFromFile();
         nextStatus = !nextStatus;
+    }
+    if (e.state === "UP" && e.name === "F4") {
+        // re-read waveA
+        console.log(`${e.name} ${e.state === "DOWN" ? "DOWN" : "UP  "} [${e.rawKey._nameRaw}]`);
+        resetWave();
     }
 }).then(r => {});
 
