@@ -9,11 +9,14 @@ let connectionId = ""; // 从接口获取的连接标识符
 let targetWSId = ""; // 发送目标
 let wsConn = null; // 全局ws链接
 let nextStatus = false; //
-let isPressing = 0;
 let lb = 30;
 let hb = 50;
-// 0 : waiting for down
-// 1: already down, waiting for up
+
+const waveData = {
+    "1": `["0A0A0A0A00000000","0A0A0A0A0A0A0A0A","0A0A0A0A14141414","0A0A0A0A1E1E1E1E","0A0A0A0A28282828","0A0A0A0A32323232","0A0A0A0A3C3C3C3C","0A0A0A0A46464646","0A0A0A0A50505050","0A0A0A0A5A5A5A5A","0A0A0A0A64646464"]`,
+    "2": `["0A0A0A0A00000000","0D0D0D0D0F0F0F0F","101010101E1E1E1E","1313131332323232","1616161641414141","1A1A1A1A50505050","1D1D1D1D64646464","202020205A5A5A5A","2323232350505050","262626264B4B4B4B","2A2A2A2A41414141"]`,
+    "3": `["4A4A4A4A64646464","4545454564646464","4040404064646464","3B3B3B3B64646464","3636363664646464","3232323264646464","2D2D2D2D64646464","2828282864646464","2323232364646464","1E1E1E1E64646464","1A1A1A1A64646464"]`
+}
 
 const feedBackMsg = {
     "feedback-0": "A通道：○",
@@ -154,21 +157,27 @@ function sendWsMsg(messageObj) {
     messageObj.targetId = targetWSId;
     if (!messageObj.hasOwnProperty('type'))
         messageObj.type = "msg";
+    console.log(messageObj)
     wsConn.send(JSON.stringify((messageObj)));
 }
 
 function setLevel(channelIndex, strength) {
     const data = { type: 3, strength: strength, message: "set channel", channel: channelIndex };
-    console.log(data)
     sendWsMsg(data);
 }
 
 function setLevelFromFile() {
     try {
+        //波形数据:
+        // setInterval(() => {
+            const w = { type: "clientMsg", message: `A:${waveData[1]}`, message2: `B:${waveData[1]}`, time1: 3, time2: 3 }
+            sendWsMsg(w)
+        // }, 5000);
+
+        //强度操作：
         const data = fs.readFileSync('strength', 'utf8');
         const [name, value1, value2] = data.trim().split(',');
         const data2send = { type: 3, strength: nextStatus ? value2 : value1, message: "set channel", channel: name === "A" ? 1 : 2 };
-        console.log(data2send);
         sendWsMsg(data2send);
     } catch (err) {
         console.error('Error reading the file:', err);
@@ -176,15 +185,10 @@ function setLevelFromFile() {
 }
 
 kListener.addListener(function (e, down) {
-    if (e.state === "DOWN" && e.rawKey._nameRaw === "VK_CAPITAL") {
-        console.log(`${e.name} ${e.state === "DOWN" ? "DOWN" : "UP  "} [${e.rawKey._nameRaw}]`);
-        isPressing = 1;
-    }
     if (e.state === "UP" && e.rawKey._nameRaw === "VK_CAPITAL") {
         console.log(`${e.name} ${e.state === "DOWN" ? "DOWN" : "UP  "} [${e.rawKey._nameRaw}]`);
         setLevelFromFile();
         nextStatus = !nextStatus;
-        isPressing = 0;
     }
 }).then(r => {});
 
