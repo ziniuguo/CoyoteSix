@@ -1,7 +1,0 @@
-{
-  "dependencies": {
-    "node-global-key-listener": "^0.3.0",
-    "qrcode": "^1.5.3",
-    "ws": "^8.17.0"
-  }
-}

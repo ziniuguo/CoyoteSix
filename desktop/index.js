@@ -13,11 +13,6 @@ let waveInterval = null;
 let lb = 30;
 let hb = 50;
 
-const waveData = {
-    "1": `["0A0A0A0A00000000","0A0A0A0A0A0A0A0A","0A0A0A0A14141414","0A0A0A0A1E1E1E1E","0A0A0A0A28282828","0A0A0A0A32323232","0A0A0A0A3C3C3C3C","0A0A0A0A46464646","0A0A0A0A50505050","0A0A0A0A5A5A5A5A","0A0A0A0A64646464"]`,
-    "2": `["0A0A0A0A00000000","0D0D0D0D0F0F0F0F","101010101E1E1E1E","1313131332323232","1616161641414141","1A1A1A1A50505050","1D1D1D1D64646464","202020205A5A5A5A","2323232350505050","262626264B4B4B4B","2A2A2A2A41414141"]`,
-    "3": `["4A4A4A4A64646464","4545454564646464","4040404064646464","3B3B3B3B64646464","3636363664646464","3232323264646464","2D2D2D2D64646464","2828282864646464","2323232364646464","1E1E1E1E64646464","1A1A1A1A64646464"]`
-}
 
 const feedBackMsg = {
     "feedback-0": "A通道：○",
@@ -34,12 +29,13 @@ const feedBackMsg = {
 
 function connectWs() {
     wsConn = new WebSocket("ws://47.106.145.100:9999/");
+    //wsConn = new WebSocket("ws://localhost:9999/");
     wsConn.onopen = function (event) {
-        console.log("Desktop: WebSocket connection opened!");
+        console.log("WebSocket连接已建立");
     };
 
     wsConn.onmessage = function (event) {
-        let message = null;
+        var message = null;
         try {
             message = JSON.parse(event.data);
         }
@@ -69,7 +65,6 @@ function connectWs() {
                     targetWSId = message.targetId;
 
                     console.log("收到targetId: " + message.targetId + "msg: " + message.message);
-                    // hideqrcode();
                 }
                 break;
             case 'break':
@@ -77,7 +72,6 @@ function connectWs() {
                 if (message.targetId !== targetWSId)
                     return;
                 console.log("对方已断开，code:" + message.message)
-                // location.reload();
                 break;
             case 'error':
                 if (message.targetId !== targetWSId)
@@ -94,24 +88,25 @@ function connectWs() {
                     console.log("B通道当前强度：" +  numbers[1]);
                     console.log("A通道软上限：" +  numbers[2]);
                     console.log("B通道软上限：" +  numbers[3]);
-                    // if (followAStrength && numbers[2] !== numbers[0]) {
-                    //     //开启跟随软上限  当收到和缓存不同的软上限值时触发自动设置
-                    //     // softAStrength = numbers[2]; // 保存 避免重复发信
-                    //     const data1 = { type: 4, message: `strength-1+2+${numbers[2]}` }
-                    //     sendWsMsg(data1);
-                    // }
-                    // if (followBStrength && numbers[3] !== numbers[1]) {
-                    //     // softBStrength = numbers[3]
-                    //     const data2 = { type: 4, message: `strength-2+2+${numbers[3]}` }
-                    //     sendWsMsg(data2);
-                    // }
+
                 }
                 else if (message.message.includes("feedback")) {
                     console.log(feedBackMsg[message.message]);
                 }
                 break;
             case 'heartbeat':
+                //心跳包
                 console.log("收到心跳");
+                if (targetWSId !== '') {
+                    // 已连接上
+                    const light = document.getElementById("status-light");
+                    light.style.color = '#00ff37';
+
+                    // 1秒后将颜色设置回 #ffe99d
+                    setTimeout(() => {
+                        light.style.color = '#ffe99d';
+                    }, 1000);
+                }
                 break;
             default:
                 console.log("收到其他消息：" + JSON.stringify(message)); // 输出其他类型的消息到控制台
@@ -120,19 +115,19 @@ function connectWs() {
     };
 
     wsConn.onerror = function (event) {
-        console.error("Desktop: error");
+        console.error("WebSocket连接发生错误");
         // 在这里处理连接错误的情况
     };
 
     wsConn.onclose = function (event) {
-        console.log("Desktop: close");
+        showToast("连接已断开");
     };
 }
 
 async function generateQRCode(url, filePath) {
     try {
         // Generate QR code
-        const qrData = await qr.toDataURL(url);
+        const qrData = qr.toDataURL(url);
 
         // Check if qrData is a string
         if (typeof qrData !== 'string') {
@@ -199,11 +194,14 @@ function resetWave() {
 
     //波形数据:
     function sendWave () {
-        const w = { type: "clientMsg",
-            message: "A:"+dataA, time1: durationANumber,
-            message2: "B:"+dataB,  time2: durationBNumber
+        const w1 = { type: "clientMsg",
+            message: "A:"+dataA, time: durationANumber, channel: "A"
         }
-        sendWsMsg(w)
+        const w2 = { type: "clientMsg",
+            message: "B:"+dataB, time: durationBNumber, channel: "B"
+        }
+        sendWsMsg(w1)
+        sendWsMsg(w2)
     }
     sendWave()
     waveInterval = setInterval(sendWave, intervalNumber);

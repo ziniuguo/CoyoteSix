@@ -32,8 +32,8 @@ const waveData = {
 }
 
 function connectWs() {
-    // wsConn = new WebSocket("ws://12.34.56.78:9999/");
-    wsConn = new WebSocket("ws://47.106.145.100:9999/");
+    wsConn = new WebSocket("ws://12.34.56.78:9999/");
+    //wsConn = new WebSocket("ws://localhost:9999/");
     wsConn.onopen = function (event) {
         console.log("WebSocket连接已建立");
     };
@@ -56,9 +56,8 @@ function connectWs() {
                     connectionId = message.clientId; // 获取 clientId
                     console.log("收到clientId：" + message.clientId);
                     qrcodeImg.clear();
-                    // qrcodeImg.makeCode("https://www.dungeon-lab.com/app-download.php#DGLAB-SOCKET#ws://12.34.56.78:9999/" + connectionId);
+                    qrcodeImg.makeCode("https://www.dungeon-lab.com/app-download.php#DGLAB-SOCKET#ws://12.34.56.78:9999/" + connectionId);
                     //qrcodeImg.makeCode("https://www.dungeon-lab.com/app-download.php#DGLAB-SOCKET#ws://192.168.3.235:9999/" + connectionId);
-                    qrcodeImg.makeCode("https://www.dungeon-lab.com/app-download.php#DGLAB-SOCKET#ws://47.106.145.100:9999/" + connectionId);
                 }
                 else {
                     if (message.clientId != connectionId) {
@@ -222,8 +221,10 @@ function sendCustomMsg() {
     const msg1 = `A:${waveData[selectA]}`;
     const msg2 = `B:${waveData[selectB]}`;
 
-    const data = { type: "clientMsg", message: msg1, message2: msg2, time1: timeA, time2: timeB }
-    sendWsMsg(data)
+    const dataA = { type: "clientMsg", message: msg1, time: timeA, channel: "A" }
+    const dataB = { type: "clientMsg", message: msg2, time: timeB, channel: "B" }
+    sendWsMsg(dataA)
+    sendWsMsg(dataB)
 
     fangdouSetTimeOut = setTimeout(() => {
         clearTimeout(fangdouSetTimeOut);
