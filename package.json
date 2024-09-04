@@ -3,6 +3,7 @@
     "fs": "^0.0.1-security",
     "node-global-key-listener": "^0.3.0",
     "qrcode": "^1.5.4",
+    "robotjs": "^0.6.0",
     "uuid": "^10.0.0",
     "ws": "^8.18.0"
   }

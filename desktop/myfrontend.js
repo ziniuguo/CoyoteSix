@@ -97,16 +97,16 @@ function connectWs() {
             case 'heartbeat':
                 //心跳包
                 console.log("收到心跳");
-                if (targetWSId !== '') {
-                    // 已连接上
-                    const light = document.getElementById("status-light");
-                    light.style.color = '#00ff37';
-
-                    // 1秒后将颜色设置回 #ffe99d
-                    setTimeout(() => {
-                        light.style.color = '#ffe99d';
-                    }, 1000);
-                }
+                // if (targetWSId !== '') {
+                //     // 已连接上
+                //     const light = document.getElementById("status-light");
+                //     light.style.color = '#00ff37';
+                //
+                //     // 1秒后将颜色设置回 #ffe99d
+                //     setTimeout(() => {
+                //         light.style.color = '#ffe99d';
+                //     }, 1000);
+                // }
                 break;
             default:
                 console.log("收到其他消息：" + JSON.stringify(message)); // 输出其他类型的消息到控制台
@@ -127,7 +127,7 @@ function connectWs() {
 async function generateQRCode(url, filePath) {
     try {
         // Generate QR code
-        const qrData = qr.toDataURL(url);
+        const qrData = await qr.toDataURL(url);
 
         // Check if qrData is a string
         if (typeof qrData !== 'string') {
