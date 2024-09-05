@@ -1,9 +1,9 @@
 const qr = require('qrcode');
 const fs = require('fs');
 const WebSocket = require('ws');
-const {GlobalKeyboardListener} = require("node-global-key-listener");
-const kListener = new GlobalKeyboardListener();
-
+const OBSWebSocket = require('obs-websocket-js').OBSWebSocket;
+const Jimp = require('jimp').Jimp;
+const obs = new OBSWebSocket();
 
 let connectionId = ""; // 从接口获取的连接标识符
 let targetWSId = ""; // 发送目标
@@ -65,6 +65,98 @@ function connectWs() {
                     targetWSId = message.targetId;
 
                     console.log("收到targetId: " + message.targetId + "msg: " + message.message);
+                    let state = 0;
+                    let currStrength = 5;
+                    // 连接到 OBS WebSocket
+                    obs.connect('ws://localhost:4455', 'nekopass') // TODO
+                        .then(() => {
+                            console.log('成功连接到 OBS WebSocket');
+                            setWave() // wave initialization
+                            const data = { type: 3, strength: 5, message: "set channel", channel: 1};
+                            sendWsMsg(data); // strength initialization
+                            // 每隔 5 秒截取一次屏幕并读取特定像素颜色
+                            setInterval(async () => {
+                                try {
+                                    // 调用 GetSourceScreenshot 获取截图
+                                    const response = await obs.call('GetSourceScreenshot', {
+                                        sourceName: 'Game Capture', // 替换为你捕获游戏的源
+                                        imageFormat: 'png',
+                                        width: 1920, // 自定义宽度
+                                        height: 1080 // 自定义高度
+                                    });
+
+                                    // 获取截图 Base64 数据，并移除前缀 "data:image/png;base64,"
+                                    const imgBase64 = response.imageData.replace(/^data:image\/png;base64,/, '');
+                                    const imgBuffer = Buffer.from(imgBase64, 'base64');
+
+                                    // 保存为 PNG 文件
+                                    const screenshotPath = 'screenshot.png';
+                                    fs.writeFileSync(screenshotPath, imgBuffer);
+                                    // console.log('截图已保存为 screenshot.png');
+
+                                    // 使用 Jimp 读取截图文件并获取特定像素颜色
+                                    Jimp.read(screenshotPath)
+                                        .then(image => {
+                                            // 获取特定位置的颜色 (例如 765, 110)
+                                            const x = 790;
+                                            const y = 110;
+                                            const x2 = 1870;
+                                            const y2 = 915;
+                                            // const x3 = 960;
+                                            // const y3 = 540;
+                                            const color = image.getPixelColor(x, y); // 返回的是颜色的 ARGB 值
+                                            const color2 = image.getPixelColor(x2, y2);
+                                            // const color3 = image.getPixelColor(x2, y2);
+
+                                            // 转换为 HEX 格式
+                                            const hexColor = ((color >> 8) & 0xFFFFFF).toString(16).padStart(6, '0');
+                                            const hexColor2 = ((color2 >> 8) & 0xFFFFFF).toString(16).padStart(6, '0');
+
+                                            if (hexColor2 === 'adaeb9') {
+                                                console.log(`颜色 (HEX2): #${hexColor} 游戏结束，惩罚重置`);
+                                                const data = { type: 3, strength: 5, message: "set channel", channel: 1 };
+                                                sendWsMsg(data);
+                                                currStrength = 0;
+                                            }
+
+                                            if (state === 0) {
+                                                if (hexColor === '3ca0ee') {
+                                                    state = 1;
+                                                }
+                                            } else if (state === 1) {
+                                                if (hexColor !== '3ca0ee') {
+                                                    state = 2;
+                                                }
+                                            } else if (state === 2) {
+                                                if (hexColor === '3ca0ee') {
+                                                    state = 1;
+                                                }
+                                                if (hexColor === '395268') {
+                                                    state = 3;
+                                                    console.log(`颜色 (HEX): #${hexColor} 增加惩罚`);
+                                                    const data = { type: 3, strength: Math.min(currStrength + 5, 200), message: "set channel", channel: 1 };
+                                                    currStrength = Math.min(currStrength + 5, 200);
+                                                    sendWsMsg(data);
+                                                }
+                                            } else if (state === 3) {
+                                                if (hexColor !== '395286') {
+                                                    state = 0;
+                                                }
+                                            }
+
+                                        })
+                                        .catch(err => {
+                                            console.error('读取图像文件失败:', err);
+                                        });
+
+                                } catch (error) {
+                                    console.error('截图或颜色处理失败:', error);
+                                }
+                            }, 540);
+                        })
+                        .catch((error) => {
+                            console.error('连接失败:', error);
+                        });
                 }
                 break;
             case 'break':
@@ -153,76 +245,23 @@ function sendWsMsg(messageObj) {
     messageObj.targetId = targetWSId;
     if (!messageObj.hasOwnProperty('type'))
         messageObj.type = "msg";
-    console.log(messageObj)
+    // console.log(messageObj)
     wsConn.send(JSON.stringify((messageObj)));
 }
 
-function setLevel(channelIndex, strength) {
-    const data = { type: 3, strength: strength, message: "set channel", channel: channelIndex };
-    sendWsMsg(data);
-}
 
-function setLevelFromFile() {
-    try {
-        //强度操作：
-        const data = fs.readFileSync('strength', 'utf8');
-        const [name, value1, value2] = data.trim().split('|');
-        const data2send = { type: 3, strength: nextStatus ? value2 : value1, message: "set channel", channel: name === "A" ? 1 : 2 };
-        sendWsMsg(data2send);
-    } catch (err) {
-        console.error('Error reading the file:', err);
-    }
-}
-
-function resetWave() {
+function setWave() {
     // read new wave
     const dataA = fs.readFileSync('waveA', 'utf8');
-    const dataB = fs.readFileSync('waveB', 'utf8');
-    const dataTime = fs.readFileSync('waveDurationInterval', 'utf8');
-
-    const [durationA, durationB, interval] = dataTime.trim().split('|');
-    const durationANumber = parseInt(durationA);
-    const durationBNumber = parseInt(durationB);
-
-// Convert interval to number and convert seconds to milliseconds
-    const intervalNumber = parseInt(interval) * 1000;
-
-    // clear legacy waveA. actually not necessary as long as you dont send a lot
-    clearInterval(waveInterval)
-    clearAB(1);
-    clearAB(2);
-
+    const durationA = 3; // TODO
+    const interval = 4; // TODO
     //波形数据:
     function sendWave () {
         const w1 = { type: "clientMsg",
-            message: "A:"+dataA, time: durationANumber, channel: "A"
-        }
-        const w2 = { type: "clientMsg",
-            message: "B:"+dataB, time: durationBNumber, channel: "B"
+            message: "A:"+dataA, time: durationA, channel: "A"
         }
         sendWsMsg(w1)
-        sendWsMsg(w2)
     }
     sendWave()
-    waveInterval = setInterval(sendWave, intervalNumber);
+    waveInterval = setInterval(sendWave, interval * 1000);
 }
-
-function clearAB(channelIndex) {
-    const data = { type: 4, message: "clear-" + channelIndex }
-    sendWsMsg(data);
-}
-
-kListener.addListener(function (e, down) {
-    if (e.state === "UP" && e.name === "CAPS LOCK") {
-        // change strength
-        console.log(`${e.name} ${e.state === "DOWN" ? "DOWN" : "UP  "} [${e.rawKey._nameRaw}]`);
-        setLevelFromFile();
-        nextStatus = !nextStatus;
-    }
-    if (e.state === "UP" && e.name === "F4") {
-        // re-read waveA
-        console.log(`${e.name} ${e.state === "DOWN" ? "DOWN" : "UP  "} [${e.rawKey._nameRaw}]`);
-        resetWave();
-    }
-}).then(r => {});
-
